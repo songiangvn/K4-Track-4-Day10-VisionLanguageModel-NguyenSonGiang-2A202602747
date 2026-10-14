@@ -14,10 +14,12 @@ Phút = thời gian vòng huấn luyện (300 bước tối ưu, chưa gồm n�
 | E2 | + projector | 142,135,296 | 7.83 | 39.33 | 0.365 | 0.326–0.410 | 0.99 | 0.224 | 0.262 | 0.678 |
 | E3 | + LoRA ViT | 148,426,752 | 8.01 | 51.82 | 0.440 | 0.400–0.480 | 0.90 | 0.316 | 0.341 | 0.727 |
 | E4 | data_size = 1.0 (= E3) | 148,426,752 | 8.01 | 51.82 | 0.440 | 0.400–0.480 | 0.90 | 0.316 | 0.341 | 0.727 |
-| E4 | data_size = 0.1 (142 ảnh, setup E3) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
-| E5 | GRPO từ E3 (60 bước) | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ | ⏳ |
+| E4 | data_size = 0.1 (142 ảnh, setup E3) | 148,426,752 | 7.68 | 50.55 | 0.258 | 0.225–0.292 | 1.80 | 0.186 | 0.174 | 0.530 |
+| E5 | GRPO từ E3 (60 bước, chỉ LoRA LLM) | 33,030,144 | 6.87 | 38.25 | 0.462 | 0.422–0.507 | 0.69 | 0.326 | 0.365 | 0.735 |
 
-`parse_valid_rate`: E0 0.836 · E1 0.990 · E2 1.000 · E3 1.000. Precision/Recall micro: E0 0.121/0.070 · E1 0.295/0.245 · E2 0.393/0.341 · E3 0.466/0.417. Mean IoU các cặp khớp: 0.598 · 0.679 · 0.683 · 0.697.
+`parse_valid_rate`: E0 0.836 · E1 0.990 · E2 1.000 · E3 1.000 · E4(0.1) 0.997 · E5 1.000. Precision/Recall micro: E0 0.121/0.070 · E1 0.295/0.245 · E2 0.393/0.341 · E3 0.466/0.417 · E4(0.1) 0.232/0.290 · E5 0.527/0.412. Mean IoU các cặp khớp: 0.598 · 0.679 · 0.683 · 0.697 · 0.687 · 0.697.
+
+File evidence: `e0.json`, `e1.json`, `e2.json`, `e3.json`, `e4_data_0.1.json`, `e4_data_1.0.json` (chấm lại chính dự đoán của E3, vì data_size = 1.0 trùng cấu hình E3), `e5.json`.
 
 Ảnh minh hoạ (xanh lá = GT, đỏ = dự đoán; mỗi file 2 ảnh đúng, 2 ảnh sai do FP, 2 ảnh sai do FN):
 `report/figures/gt_samples.jpg` (nhãn gốc) · `report/figures/e0_examples.jpg` · `report/figures/e1_examples.jpg` · `report/figures/e3_examples.jpg`.
@@ -132,8 +134,50 @@ Lớp kém nhất là **pothole** (E3: F1 0.316, R 0.273), tiếp theo **crack**
 
 ### Câu 10 — E4: bạn đổi biến nào, kết quả thế nào, và kết luận có đáng tin không?
 
-⏳ (đang chạy E4 data_size = 0.1)
+Biến: **`data_size`** (chỉ đổi biến này). Gốc là setup tốt nhất **E3** (LoRA LLM + projector fp32 + LoRA ViT, r=16, lr 2e-4, 300 bước × batch hiệu dụng 8, seed 42). Giá trị 0.1 = 142 ảnh lấy ngẫu nhiên (seed 42) từ 1,422 ảnh train; giá trị 1.0 chính là E3. Số bước, lr, lịch lr, batch giữ nguyên — nghĩa là với 10% dữ liệu model thấy mỗi ảnh ≈ 17 lần thay vì ≈ 1.7 lần.
+
+| data_size | Ảnh train | F1 | CI95 | P / R | FP/ảnh | F1 pothole / crack / manhole | Loss train cuối |
+|---|---|---|---|---|---|---|---|
+| 0.1 | 142 | 0.258 | 0.225–0.292 | 0.232 / 0.290 | 1.80 | 0.186 / 0.174 / 0.530 | 0.026 |
+| 1.0 (E3) | 1,422 | 0.440 | 0.400–0.480 | 0.466 / 0.417 | 0.90 | 0.316 / 0.341 / 0.727 | 0.480 |
+
+Kết quả: giảm dữ liệu 10 lần làm F1 giảm 0.182; bootstrap ghép cặp ΔF1 = +0.182, CI95 [+0.145, +0.217]. Hai CI95 riêng lẻ **không chồng nhau** (0.292 < 0.400) và hiệu lớn gấp ~4 lần nửa độ rộng CI, nên kết luận "nhiều dữ liệu hơn tốt hơn rõ rệt" là đáng tin trên tập test này. Cơ chế cũng nhất quán: loss train với 142 ảnh rơi xuống 0.026 (học thuộc), trong khi với 1,422 ảnh vẫn ở 0.48; model 10% sinh nhiều box hơn và sai nhiều hơn (FP/ảnh 1.80 so với 0.90, precision 0.232) — triệu chứng overfit. Đáng chú ý là chỉ 142 ảnh vẫn đưa F1 từ 0.089 (E0) lên 0.258, ngang E1 dùng đủ dữ liệu (0.268).
+
+Giới hạn: (1) chỉ 2 điểm dữ liệu nên không biết đường cong 10% → 100% đã bão hoà chưa; (2) một seed, một tập con 142 ảnh — tập con khác có thể cho kết quả khác; (3) ablation này gộp hai hiệu ứng "ít dữ liệu" và "lặp nhiều epoch hơn" vì tôi giữ số bước cố định — đó là quy ước tôi chọn để chỉ đổi đúng một biến trong config; (4) như câu 8, CI theo ảnh trên 3 session test đánh giá thấp độ bất định thật. Với hiệu 0.18 thì các giới hạn này không đảo ngược được kết luận, nhưng không nên trích dẫn con số chính xác quá mức.
+
+## E5 (bonus) — GRPO với reward IoU
+
+**Hàm reward** (`lab/reward.py`): `0.0` nếu `parse_output` trả `None`; `1.0` nếu cả GT và dự đoán đều rỗng; ngược lại `0.2 + 0.8 · ΣIoU / max(n_gt, n_pred, 1)` với ghép tham lam theo IoU giảm dần, cùng lớp, chỉ nhận IoU ≥ 0.5 (giống `score.py`). Test: `lab/tests/test_reward_and_labels.py` (14 test, `python -m pytest lab/tests -q`, không cần GPU), gồm 5 ca bắt buộc — hoàn hảo = 1.0, JSON hỏng = 0.0, sai lớp = 0.2, thừa box (1 GT khớp + 1 box bịa) = 0.6, cùng rỗng = 1.0 — và các ca chống hack: trả `[]` khi có GT = 0.2, một box khổng lồ `[0,0,1000,1000]` = 0.2 (IoU < 0.5), output bọc markdown vẫn chấm đúng.
+
+**Thiết lập** (`lab/grpo.py`, `trl.GRPOTrainer` của trl 1.9.2): khởi tạo từ adapter LoRA + projector của **E3** (output kernel E3 gắn làm input); chỉ cập nhật LoRA của LLM (33,030,144 tham số), projector và LoRA ViT giữ nguyên trọng số SFT. `num_generations=4`, `max_completion_length=128`, 60 bước, lr 5e-6 hằng số, `beta=0` (không KL, không cần model tham chiếu), nhiệt độ 1.0, 2 ảnh/bước. Hai chỉnh sửa cần thiết trên T4: GRPOTrainer đưa 504 tensor LoRA về bf16 nên tôi ép lại fp32 (lần chạy thử báo `_amp_foreach_non_finite_check_and_unscale_cuda not implemented for 'BFloat16'`); và tôi lọc ảnh train còn ≤ 4 box (1,280/1,422 ảnh) vì 1 box ≈ 22 token — ảnh đông box sẽ bị cắt ở 128 token → JSON hỏng → reward 0 cho cả nhóm, đẩy model về phía "khai ít box". Thời gian train 38.25 phút, VRAM đỉnh 6.87 GB.
+
+**Log huấn luyện** (`runs/e5/out/grpo_log.jsonl` + log của TRL; trung bình theo khối 10 bước):
+
+| Bước | reward TB | reward std | JSON hỏng/bị cắt | `[]` khi có GT | box/completion | độ dài TB (token) | nhóm có reward bằng nhau |
+|---|---|---|---|---|---|---|---|
+| 1–10 | 0.449 | 0.209 | 4.4% | 0% | 1.91 | 57.0 | 10% |
+| 11–20 | 0.365 | 0.134 | 1.3% | 0% | 1.72 | 50.2 | 22.5% |
+| 21–30 | 0.400 | 0.218 | 3.7% | 0% | 1.65 | 50.5 | 15% |
+| 31–40 | 0.372 | 0.155 | 3.7% | 0% | 1.91 | 57.1 | 5% |
+| 41–50 | 0.414 | 0.200 | 1.9% | 0% | 1.65 | 48.7 | 25% |
+| 51–60 | 0.456 | 0.201 | 0.6% | 0% | 1.64 | 47.6 | 10% |
+
+Reward trung bình dao động theo độ khó của ảnh trong từng lô (mỗi bước chỉ 2 ảnh) và **không có xu hướng tăng rõ** trong 60 bước (10 bước đầu 0.449, 10 bước cuối 0.456) — 60 bước × lr 5e-6 là cập nhật rất nhỏ. Xu hướng nhất quán là completion ngắn dần (57 → 48 token) và tỉ lệ bị cắt/hỏng giảm (4.4% → 0.6%).
+
+**Reward hacking?** Không thấy dạng hack thô: tỉ lệ trả `[]` khi ảnh có GT = 0% suốt quá trình (train/val/test đều không có ảnh rỗng, nên `[]` luôn chỉ được 0.2); chỉ 8 box khổng lồ (> 25% khung hình) trên 960 completion và không tăng dần; trên test không có box khổng lồ nào. Nhưng có một **dịch chuyển nhẹ về phía khai ít box**: trên test, E5 sinh 1.46 box/ảnh so với 1.68 của E3 (GT thật 1.87) — TP gần như giữ nguyên (243 → 240) trong khi FP giảm 279 → 215. Mẫu số `max(n_gt, n_pred)` phạt box bịa, còn một box thiếu chỉ làm mất phần IoU của nó, nên "chỉ khai box chắc chắn" là chính sách an toàn để tăng reward kỳ vọng. Ở mức này nó có lợi cho F1, nhưng nếu huấn luyện lâu hơn có nguy cơ thành bỏ sót có hệ thống (recall giảm); cần theo dõi `pred_boxes_mean` so với `gt_boxes_mean`.
+
+**So với SFT (E3), bằng số kèm CI95:**
+
+| | F1 | CI95 | P | R | FP/ảnh | F1 pothole / crack / manhole |
+|---|---|---|---|---|---|---|
+| E3 (SFT) | 0.440 | 0.400–0.480 | 0.466 | 0.417 | 0.90 | 0.316 / 0.341 / 0.727 |
+| E5 (SFT + GRPO) | 0.462 | 0.422–0.507 | 0.527 | 0.412 | 0.69 | 0.326 / 0.365 / 0.735 |
+
+ΔF1 = +0.023. Hai CI95 riêng lẻ **chồng nhau gần hết**, nên theo tiêu chí đó không kết luận được. Bootstrap ghép cặp cho ΔF1 CI95 [+0.002, +0.044], P(Δ ≤ 0) = 0.012 — dương nhưng sát 0. Kết luận trung thực: GRPO 60 bước cho một cải thiện **nhỏ, chủ yếu qua precision** (0.466 → 0.527, FP/ảnh 0.90 → 0.69), recall không đổi; với một seed, 3 session test và CI ghép cặp gần chạm 0, đây là tín hiệu tích cực nhưng chưa vững — cần nhiều seed/bước hơn để khẳng định.
 
 ## Nhìn lại
 
-⏳
+- **Bẫy thật mà công cụ chấm không bắt được**: với transformers 5.19, `llm_int8_skip_modules=["visual", "lm_head"]` không giữ được projector ở fp16 — một phần merger bị lượng tử hoá 4-bit một cách im lặng. Nếu bỏ qua lỗi bằng cách chỉ mở `requires_grad` cho các tham số còn lại, E2/E3 vẫn chạy nhưng chỉ huấn luyện một phần projector, và `check_submission.py` vẫn PASS. Tôi chỉ phát hiện nhờ đối chiếu số tham số (87.6M thay vì 142.1M) và đã thêm `assert` sau khi nạp model. Bài học: kiểm tra kiểu module/dtype sau khi nạp, không tin vào tên tham số cấu hình.
+- **Lỗi môi trường**: torchao 0.10 có sẵn trên Kaggle làm PEFT 0.21.2 lỗi khi gắn LoRA vào `nn.Linear` thường (chỉ xảy ra ở E3 vì ViT không lượng tử hoá) → gỡ torchao. GRPOTrainer tự đưa adapter về bf16, không chạy được với GradScaler fp16 trên T4. Một lần tải output Kaggle trả về trang HTML lỗi 502 thay cho file `.jsonl`; `score.py` báo `JSONDecodeError` nên tôi phát hiện được — nếu file bị cắt cụt mà vẫn là JSON hợp lệ thì `missing_predictions` là tín hiệu duy nhất.
+- **Điều chưa hiểu hết / chưa đo**: tôi không chạy biến thể không mask loss nên phần hậu quả ở câu 4 là lập luận; không đo phương sai giữa các seed huấn luyện (mỗi setup một lần chạy) nên không biết bao nhiêu phần của các hiệu 0.02–0.08 là nhiễu huấn luyện; chưa rõ vì sao reward GRPO không tăng rõ trong 60 bước dù F1 test tăng nhẹ — có thể do lô 2 ảnh quá nhiễu (chênh lệch reward giữa các lô lớn hơn mức thay đổi trung bình).
+- **Giới hạn dữ liệu**: test chỉ có 3 session (213/311 ảnh từ một session); nhãn crack/pothole chồng chéo (box crack lớn bao các box pothole) nên một phần FP/FN là do quy ước gán nhãn hơn là do model. Thời gian train E1–E3 (38.75 / 39.33 / 51.82 phút) cao hơn ước lượng 20–30 phút của đề; tôi ghi số đo thật trên T4 của Kaggle.
