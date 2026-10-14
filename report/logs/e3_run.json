@@ -1,0 +1,18 @@
+{
+  "name": "e3",
+  "setup": "E3",
+  "rank": 16,
+  "alpha": 32,
+  "train_frac": 1.0,
+  "n_train": 1422,
+  "coord": "norm1000",
+  "lr": 0.0002,
+  "batch_size": 2,
+  "grad_accum": 4,
+  "max_steps": 300,
+  "lora_modules": 348,
+  "trainable_params": 148426752,
+  "train_minutes": 51.82,
+  "peak_vram_gb": 8.01,
+  "infer_minutes": 9.79
+}

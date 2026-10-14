@@ -1,0 +1,18 @@
+{
+  "name": "e1",
+  "setup": "E1",
+  "rank": 16,
+  "alpha": 32,
+  "train_frac": 1.0,
+  "n_train": 1422,
+  "coord": "norm1000",
+  "lr": 0.0002,
+  "batch_size": 2,
+  "grad_accum": 4,
+  "max_steps": 300,
+  "lora_modules": 252,
+  "trainable_params": 33030144,
+  "train_minutes": 38.75,
+  "peak_vram_gb": 6.23,
+  "infer_minutes": 9.01
+}

@@ -1,0 +1,18 @@
+{
+  "name": "e2",
+  "setup": "E2",
+  "rank": 16,
+  "alpha": 32,
+  "train_frac": 1.0,
+  "n_train": 1422,
+  "coord": "norm1000",
+  "lr": 0.0002,
+  "batch_size": 2,
+  "grad_accum": 4,
+  "max_steps": 300,
+  "lora_modules": 252,
+  "trainable_params": 142135296,
+  "train_minutes": 39.33,
+  "peak_vram_gb": 7.83,
+  "infer_minutes": 8.77
+}

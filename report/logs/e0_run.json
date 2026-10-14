@@ -1,0 +1,12 @@
+{
+  "name": "e0",
+  "infer_minutes": 15.31,
+  "peak_vram_gb": 4.24,
+  "param_report": {
+    "vit": 306242560,
+    "projector": 109105152,
+    "llm": 4022468096,
+    "lm_head": 0,
+    "other": 0
+  }
+}

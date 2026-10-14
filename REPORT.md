@@ -5,7 +5,7 @@ Họ tên: Nguyễn Sơn Giang
 
 ## Bảng tổng hợp (số của bạn, lấy từ `report/evidence/*.json`)
 
-Phút = thời gian vòng huấn luyện (300 bước tối ưu, chưa gồm nạp model và suy luận 311 ảnh ≈ 9–10 phút). VRAM đỉnh = `torch.cuda.max_memory_allocated` trong lúc train (E0: lúc suy luận).
+Phút = thời gian vòng huấn luyện (300 bước tối ưu, chưa gồm nạp model và suy luận 311 ảnh ≈ 9–10 phút). VRAM đỉnh = `torch.cuda.max_memory_allocated` trong lúc train (E0: lúc suy luận). Nhật ký từng 10 bước (loss, lr, grad norm, VRAM, phút) và `run.json` của mỗi lần chạy: `report/logs/`.
 
 | Mã | Setup | Tham số huấn luyện | VRAM đỉnh (GB) | Phút | F1 | CI95 | FP/ảnh | F1 pothole | F1 crack | F1 manhole |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -72,7 +72,7 @@ Vì sao về 0: chấm `pixel` sẽ chia x cho 640 và y cho 360 rồi nhân 100
 
 Trong smoke test (ảnh train có 9 box), chuỗi đầy đủ dài **563 token**, trong đó **220** token `<|image_pad|>` (image_grid_thw = [1, 22, 40] → 22×40/4 = 220) và phần còn lại là template + prompt; chỉ JSON đáp án + `<|im_end|>\n` được giữ nhãn. Tôi kiểm tra bằng cách giải mã riêng các token có `labels != -100`: ra đúng chuỗi `[{"label":"crack","bbox_2d":[430,467,583,506]},…]<|im_end|>\n`, và `assert` rằng prompt đã mã hoá là tiền tố của chuỗi đầy đủ (nếu không thì vị trí cắt sai).
 
-Lý do: (1) Mục tiêu là p(đáp án | ảnh, prompt); prompt giống hệt nhau ở mọi mẫu và 220 vị trí ảnh đều là cùng một token giữ chỗ `<|image_pad|>` — "dự đoán" chúng không dạy gì về hư hại mặt đường. (2) Loss là trung bình trên các token có nhãn; với ảnh ít box (đáp án ~25–50 token) thì phần trả lời chỉ chiếm ~5–10% số token, nên gradient hữu ích bị pha loãng 10–20 lần, cùng lr 2e-4 và 300 bước model sẽ học chậm hẳn. (3) Tệ hơn, model học cách sinh lại prompt/chuỗi `<|image_pad|>`, có thể làm lệch hành vi lúc sinh. Với mask đúng, loss E1 giảm 1.70 → 0.63 trong 60 bước đầu và về 0.57 ở bước 300 (`runs/e1/out/train_log.jsonl`), và E1 có `parse_valid_rate` 0.990. (Tôi không chạy biến thể không mask để tiết kiệm quota GPU — phần (2)–(3) là lập luận, không phải số đo.)
+Lý do: (1) Mục tiêu là p(đáp án | ảnh, prompt); prompt giống hệt nhau ở mọi mẫu và 220 vị trí ảnh đều là cùng một token giữ chỗ `<|image_pad|>` — "dự đoán" chúng không dạy gì về hư hại mặt đường. (2) Loss là trung bình trên các token có nhãn; với ảnh ít box (đáp án ~25–50 token) thì phần trả lời chỉ chiếm ~5–10% số token, nên gradient hữu ích bị pha loãng 10–20 lần, cùng lr 2e-4 và 300 bước model sẽ học chậm hẳn. (3) Tệ hơn, model học cách sinh lại prompt/chuỗi `<|image_pad|>`, có thể làm lệch hành vi lúc sinh. Với mask đúng, loss E1 giảm 1.70 → 0.63 trong 60 bước đầu và về 0.57 ở bước 300 (`report/logs/e1_train_log.jsonl`), và E1 có `parse_valid_rate` 0.990. (Tôi không chạy biến thể không mask để tiết kiệm quota GPU — phần (2)–(3) là lập luận, không phải số đo.)
 
 ### Câu 5 — Vì sao không thể huấn luyện đầy đủ projector nếu ViT bị lượng tử hoá 4-bit, và bạn đã xử lý thế nào? Vì sao projector phải ở float32?
 
@@ -151,7 +151,7 @@ Giới hạn: (1) chỉ 2 điểm dữ liệu nên không biết đường cong 
 
 **Thiết lập** (`lab/grpo.py`, `trl.GRPOTrainer` của trl 1.9.2): khởi tạo từ adapter LoRA + projector của **E3** (output kernel E3 gắn làm input); chỉ cập nhật LoRA của LLM (33,030,144 tham số), projector và LoRA ViT giữ nguyên trọng số SFT. `num_generations=4`, `max_completion_length=128`, 60 bước, lr 5e-6 hằng số, `beta=0` (không KL, không cần model tham chiếu), nhiệt độ 1.0, 2 ảnh/bước. Hai chỉnh sửa cần thiết trên T4: GRPOTrainer đưa 504 tensor LoRA về bf16 nên tôi ép lại fp32 (lần chạy thử báo `_amp_foreach_non_finite_check_and_unscale_cuda not implemented for 'BFloat16'`); và tôi lọc ảnh train còn ≤ 4 box (1,280/1,422 ảnh) vì 1 box ≈ 22 token — ảnh đông box sẽ bị cắt ở 128 token → JSON hỏng → reward 0 cho cả nhóm, đẩy model về phía "khai ít box". Thời gian train 38.25 phút, VRAM đỉnh 6.87 GB.
 
-**Log huấn luyện** (`runs/e5/out/grpo_log.jsonl` + log của TRL; trung bình theo khối 10 bước):
+**Log huấn luyện** (`report/logs/e5_grpo_log.jsonl`, gồm thống kê reward từng bước và log của TRL; trung bình theo khối 10 bước):
 
 | Bước | reward TB | reward std | JSON hỏng/bị cắt | `[]` khi có GT | box/completion | độ dài TB (token) | nhóm có reward bằng nhau |
 |---|---|---|---|---|---|---|---|

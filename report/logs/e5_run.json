@@ -1,0 +1,18 @@
+{
+  "name": "e5",
+  "impl": "trl",
+  "init_adapter": "/kaggle/input/lab10-e3/out/adapter",
+  "init_projector": "/kaggle/input/lab10-e3/out/projector.pt",
+  "trainable_params": 33030144,
+  "train_minutes": 38.25,
+  "peak_vram_gb": 6.87,
+  "n_prompt_pool": 1280,
+  "num_generations": 4,
+  "max_completion_length": 128,
+  "max_steps": 60,
+  "learning_rate": 5e-06,
+  "beta": 0.0,
+  "temperature": 1.0,
+  "prompts_per_step": 2,
+  "infer_minutes": 7.87
+}
