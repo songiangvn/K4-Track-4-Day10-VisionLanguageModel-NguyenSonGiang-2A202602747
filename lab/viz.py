@@ -76,7 +76,7 @@ def cmd_preds(a):
     bad_fp = sorted([r for r in rows if r["fp"]], key=lambda r: -r["fp"])
     bad_fn = sorted([r for r in rows if r["fn"] and not r["fp"]], key=lambda r: -r["fn"])
     k = a.n // 3 or 1
-    chosen = [("ĐÚNG", r) for r in good[:k]] + [("SAI-FP", r) for r in bad_fp[:k]] + \
+    chosen = [("DUNG", r) for r in good[:k]] + [("SAI-FP", r) for r in bad_fp[:k]] + \
              [("SAI-FN", r) for r in bad_fn[:a.n - 2 * k]]
     out_dir = Path(a.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)

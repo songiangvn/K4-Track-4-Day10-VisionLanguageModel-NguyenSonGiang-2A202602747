@@ -37,6 +37,7 @@ def sh(cmd):
 
 sh("nvidia-smi -L")
 sh("pip install -q {pip}")
+sh("pip uninstall -y -q torchao")  # torchao 0.10 của Kaggle làm PEFT lỗi khi gắn LoRA vào nn.Linear (ViT, E3)
 sh("python -c 'import torch, transformers, peft, trl, bitsandbytes as b; "
    "print(torch.__version__, transformers.__version__, peft.__version__, trl.__version__, b.__version__)'")
 sh(f"python scripts/prepare_data.py --source /kaggle/input --out {{DATA}} --work /tmp/work")
